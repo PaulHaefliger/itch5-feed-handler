@@ -1,0 +1,16 @@
+# NASDAQ data and everything generated from it
+data/
+*.gz
+*_stream.bin
+*_bbo.txt
+
+# simulation and build outputs
+*.out
+*.vcd
+*.fst
+obj_dir/
+
+# editor / OS
+.vscode/
+.DS_Store
+__pycache__/
