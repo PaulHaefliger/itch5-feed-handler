@@ -1,5 +1,8 @@
 `default_nettype none
 
+// One side of the order book (bid or offer): quantity per price level and the
+// best level. 3-stage pipeline, one update per clock.
+
 module book_side #(
     parameter logic IS_BID = 1
 )(
@@ -21,6 +24,7 @@ module book_side #(
     logic [35:0]   qty_memB [0:1023];
     logic [1023:0] bitmap;
 
+    // Finds the new best level when the current best empties
     next_best #(.IS_BID(IS_BID)) find_changed_best (
         .bitmap     (bitmap),
         .L          (level1),
@@ -28,9 +32,11 @@ module book_side #(
         .found      (found)
     );
 
+    // RAM power-up contents
     initial for (int i = 0; i < 1024; i++) qty_mem[i] = '0;
     initial for (int i = 0; i < 1024; i++) qty_memB[i] = '0;
 
+    // Valid bits and occupancy bitmap
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             for (int i = 0; i < 1024; i++) begin
@@ -52,6 +58,7 @@ module book_side #(
         end
     end
 
+    // Stage-1 registers and last write (for forwarding)
     always_ff @(posedge clk) begin
         level1  <= level;
         wlevel  <= level1;
@@ -60,6 +67,7 @@ module book_side #(
         add1    <= add;
     end
 
+    // Quantity RAM (qty_memB: second copy for the next-best read)
     always_ff @(posedge clk) begin
         if (v1) begin
             qty_mem[level1]  <= sum;
@@ -68,6 +76,7 @@ module book_side #(
         rdata <= qty_mem[level];
     end
 
+    // New quantity, forwarded if the previous update hit the same level
     always_comb begin
         case (add1)
             1'b1: begin
@@ -87,6 +96,7 @@ module book_side #(
         endcase
     end
 
+    // Add at or beyond the best: becomes the new best
     always_comb begin
         wins = 0;
         if (add1) begin
@@ -95,6 +105,7 @@ module book_side #(
         end
     end
 
+    // Removal that empties the best level
     always_comb begin
         loses = 0;
         if (!add1) begin
@@ -102,6 +113,7 @@ module book_side #(
         end
     end
 
+    // Best level and quantity (next-best quantity arrives one cycle later)
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             changes_best   <= '0;
@@ -126,6 +138,7 @@ module book_side #(
         end
     end
 
+    // Output registers
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             best_valid    <= '0;
@@ -138,6 +151,7 @@ module book_side #(
         end
     end
 
+    // Quantity at the new best level
     always_ff @(posedge clk) rBdata <= qty_memB[next_level];
 
 endmodule

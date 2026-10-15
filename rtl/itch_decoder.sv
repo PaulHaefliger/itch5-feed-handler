@@ -1,6 +1,9 @@
 `default_nettype none
 import book_pkg::*;
 
+// ITCH 5.0 decoder: length-prefixed byte stream in (one byte per clock), book
+// operations out, for one stock. A Replace (U) gives two outputs: Delete, then Replace-add.
+
 module itch_decoder (
     input  logic        rst,
     input  logic        clk,
@@ -24,6 +27,7 @@ module itch_decoder (
     logic [15:0] msg_len, cur_loc;
     logic [7:0]  msg_type, sd;
 
+    // Side byte ('B'/'S') and ITCH message type to book operation
     always_comb begin
         case (sd)
             8'h42:   side = BID;
@@ -48,6 +52,8 @@ module itch_decoder (
         endcase
     end
 
+    // Byte routing: count 0-1 = length, 2 = type, 3-4 = stock locate, then the
+    // fields of each type at (spec offset + 2)
     always_comb begin
         read_len     = '0;
         read_type    = '0;
@@ -94,6 +100,8 @@ module itch_decoder (
         end
     end
 
+    // Shift each routed byte into its field (big-endian); for a U, load the new ref
+    // for the second output
     always_ff @(posedge clk) begin
         if (read_len) begin
             msg_len <= {msg_len[7:0], in_byte};
@@ -107,6 +115,7 @@ module itch_decoder (
         if (replace_pending) ref_num <= new_ref;
     end
 
+    // Byte counter, Replace sequencing and output valid (only for this stock)
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             out_valid       <= '0;

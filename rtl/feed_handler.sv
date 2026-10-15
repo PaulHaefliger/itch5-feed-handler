@@ -1,5 +1,8 @@
 `default_nettype none
 
+// Top level: ITCH byte stream in, best bid and offer out.
+// itch_decoder -> book_top, 5 cycles from the last byte of a message to the BBO.
+
 module feed_handler (
     input  logic        rst,
     input  logic        clk,
@@ -21,6 +24,7 @@ module feed_handler (
     op_t         op;
     side_t       side;
 
+    // Parses ITCH messages for one stock into book operations
     itch_decoder u_decoder (
         .rst          (rst),
         .clk          (clk),
@@ -36,6 +40,7 @@ module feed_handler (
         .shares       (shares)
     );
 
+    // Order book
     book_top u_book (
         .rst            (rst),
         .clk            (clk),

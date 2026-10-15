@@ -1,6 +1,9 @@
 `default_nettype none
 import book_pkg::*;
 
+// Order store keyed by order reference number: 4096 sets x 4 ways (set = low 12
+// bits of the ref). Turns each message into a book update. 1-cycle latency.
+
 module ref_table #(
     parameter int INDEX_BITS = 12
 )(
@@ -27,6 +30,7 @@ module ref_table #(
         logic [31:0]          price;
         logic [31:0]          shares;
     } hash_slot_t;
+    // One block RAM per way; valid bits kept in flip-flops
     hash_slot_t hash_table [4][0:2**INDEX_BITS-1];
 
     logic [TAG_WIDTH-1:0]  tag_in;
@@ -72,6 +76,8 @@ module ref_table #(
     hash_slot_t tmp_way;
     logic [3:0] valid_row;
 
+    // Lookup: forward last cycle's write if it hit this set and way, then find
+    // the matching way (hit) and the lowest free way
     always_comb begin
         valid_row = valid[index1];
         free_way  = '0;
@@ -93,6 +99,7 @@ module ref_table #(
         end
     end
 
+    // Decision per operation; an Add with no free way is dropped (overflow)
     hash_slot_t hit_slot;
     always_comb begin
         out_valid  = '0;
@@ -172,6 +179,7 @@ module ref_table #(
         end
     end
 
+    // Valid bits, sticky book_degraded, and the side saved for a Replace-add
     always_ff @(posedge clk or posedge rst) begin
         if (rst) begin
             valid         <= '0;
@@ -192,6 +200,8 @@ module ref_table #(
         end
     end
 
+    // RAM read for the next message, stage-1 registers, RAM write and the
+    // copy of that write kept for forwarding
     always_ff @(posedge clk) begin
         for (int i = 0; i < 4; i++) begin
             r_data[i] <= hash_table[i][index_in];
